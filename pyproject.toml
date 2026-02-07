@@ -3,13 +3,24 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp_lightrag"
+name = "mcp-lightrag"
 version = "0.2.0"
 description = "MCP Server for LightRAG"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
-    {name = "enriquecatala", email = "enrique@enriquecatala.com"},
+    {name = "Enrique Catala", email = "enrique@enriquecatala.com"},
+]
+license = {text = "MIT"}
+keywords = ["mcp", "lightrag", "rag", "ai", "llm", "knowledge-graph", "agent", "context-protocol"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
     "mcp>=1.2.0",
@@ -19,12 +30,19 @@ dependencies = [
     "attrs>=25.3.0"
 ]
 
+[project.urls]
+Homepage = "https://enriquecatala.com/"
+Repository = "https://github.com/enriquecatala/mcp-lightrag"
+Issues = "https://github.com/enriquecatala/mcp-lightrag/issues"
+
 [project.optional-dependencies]
 dev = [
     "mypy>=1.5.0",
     "ruff>=0.11.4",
     "pytest>=8.0.0",
-    "pytest-asyncio>=0.23.0"
+    "pytest-asyncio>=0.23.0",
+    "build",
+    "twine"
 ]
 
 [project.scripts]

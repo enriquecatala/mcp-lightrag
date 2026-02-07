@@ -111,6 +111,20 @@ uv run python -m pytest
 uv run ruff check src/
 ```
 
+### Publishing
+
+To publish a new version to PyPI:
+
+1. Update the version in `pyproject.toml`.
+2. Build the package:
+   ```bash
+   uv run python -m build
+   ```
+3. Upload to PyPI (requires PyPI API token):
+   ```bash
+   uv run twine upload dist/*
+   ```
+
 ### Updating the Client
 
 If the LightRAG API evolves, you can regenerate the client using `openapi-python-client`. Ensure your LightRAG server is running (e.g., at `http://localhost:9621`), then run:
