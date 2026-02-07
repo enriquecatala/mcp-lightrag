@@ -4,15 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "mcp-lightrag"
-version = "0.2.0"
-description = "MCP Server for LightRAG"
+version = "0.2.1"
+description = "MCP Server for LightRAG with smart document upsert capabilities"
 requires-python = ">=3.11"
 readme = "README.md"
 authors = [
     {name = "Enrique Catala", email = "enrique@enriquecatala.com"},
 ]
 license = {text = "MIT"}
-keywords = ["mcp", "lightrag", "rag", "ai", "llm", "knowledge-graph", "agent", "context-protocol"]
+keywords = ["mcp", "lightrag", "rag", "ai", "llm", "knowledge-graph", "agent", "obsidian", "context-protocol"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

@@ -1,9 +1,11 @@
 # LightRAG MCP Server
 
 A Model Context Protocol (MCP) server that enables AI assistants to interact with [LightRAG](https://github.com/HKUDS/LightRAG) knowledge graphs. Query documents, manage entities, and build semantic relationships through a standardized tool interface.
+**Optimized for Obsidian Vaults**: The built-in smart upsert and document tracking capabilities make it perfect for agents that need to sync and reason over evolving Obsidian knowledge bases.
 
 ## Features
 
+- **Smart Updates**: Intelligent `upsert` logic that detects changes in documents, skipping redundant uploads and re-indexing only when necessary
 - **Knowledge Graph Queries**: Perform semantic, keyword, or hybrid searches across your indexed documents
 - **Document Ingestion**: Add text, files, or entire directories to your knowledge base
 - **Entity Management**: Create, update, merge, and delete entities in the graph
@@ -71,6 +73,13 @@ To integrate this server with an MCP client (such as Claude Desktop), add the fo
 
 > **Note**: Replace `/absolute/path/to/mcp-lightrag` with the actual full path to where you cloned this repository.
 
+### Smart Document Handling
+This server distinguishes itself with an intelligent **Upsert Mechanism** ideal for keeping in sync with **Obsidian Vaults** or other local knowledge bases:
+- **New File** → Uploads and indexes immediately.
+- **Unchanged File** → Detects identical content and skips (saving time and resources).
+- **Modified File** → Automatically removes the old version and indexes the new one.
+This allows agents to efficiently "watch" a folder and keep the RAG knowledge graph up-to-date without redundant processing.
+
 ## Available Tools
 
 ### Search & Query
@@ -81,7 +90,8 @@ To integrate this server with an MCP client (such as Claude Desktop), add the fo
 - `ingest_file` — Index a specific local file (absolute path required).
 - `upload_and_index` — Upload a file to the server for indexing (handles transfer).
 - `ingest_batch` — Recursively scan and index directories with pattern filtering.
-- `find_document` — Check if a document exists and retrieve detailed status (id, status, timestamps, error_msg).
+- `upsert_document` — Smart document upload: creates new, skips identical, or updates modified documents.
+- `find_document` — Search for a document by filename to check status and details.
 - `get_latest_documents` — Retrieve a paginated list of recently updated documents.
 - `list_all_docs` — List all documents in the system (warning: can be slow for large datasets).
 - `check_indexing_status` — Check if the background indexing pipeline is idle or busy.
@@ -92,7 +102,7 @@ To integrate this server with an MCP client (such as Claude Desktop), add the fo
 - `remove_entities` — Delete specific entities.
 - `unify_entities` — Merge multiple entities into a single canonical entity.
 - `connect_entities` — Create or update relationships between entities.
-- `purge_by_document` — Remove all data associated with specific documents.
+- `purge_by_document` — Delete a document and remove all its associated data from the graph.
 - `get_graph_metadata` — Explore the graph schema (available node labels and relationship types).
 
 ### System
