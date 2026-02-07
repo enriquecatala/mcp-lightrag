@@ -61,8 +61,12 @@ from .client.light_rag_server_api_client.models import (
     RelationUpdateRequestUpdatedData,
     DeleteDocRequest,
     DeleteEntityRequest,
-
+    DocumentsRequest,
+    DocumentsRequestSortField,
+    DocumentsRequestSortDirection,
 )
+
+from .client.light_rag_server_api_client.api.documents.get_documents_paginated_documents_paginated_post import asyncio as async_get_documents_paginated
 from .client.light_rag_server_api_client.types import File
 from .client.light_rag_server_api_client.errors import UnexpectedStatus
 
@@ -180,7 +184,70 @@ class LightRAGApiClient:
 
     async def get_all_documents(self) -> Any:
         """Retrieve list of all indexed documents."""
+        # Use paginated API to fetch all documents if possible, or fallback to legacy endpoint
+        # The legacy endpoint is deprecated and limited to 1000 docs
         return await self._execute_op(async_get_documents, "list_documents")
+
+    async def get_documents_paginated(
+        self, 
+        page: int = 1, 
+        page_size: int = 50,
+        sort_field: str = "updated_at",
+        sort_direction: str = "desc",
+        status_filter: Optional[str] = None
+    ) -> Any:
+        """Retrieve documents with pagination."""
+        request = DocumentsRequest(
+            page=page,
+            page_size=page_size,
+            sort_field=DocumentsRequestSortField(sort_field),
+            sort_direction=DocumentsRequestSortDirection(sort_direction),
+            status_filter=status_filter or None
+        )
+        return await self._execute_op(async_get_documents_paginated, "list_documents_paginated", body=request)
+
+    async def find_document_by_file_name(self, file_name: str) -> Optional[Any]:
+        """
+        Find a document by its file name or path.
+        Returns the document DocStatusResponse object if found, None otherwise.
+        
+        This method iterates through paginated results to find the document.
+        """
+        page = 1
+        page_size = 100
+        
+        while True:
+            response = await self.get_documents_paginated(page=page, page_size=page_size)
+            
+            # Handle response structure
+            if not response:
+                break
+                
+            docs = getattr(response, "documents", [])
+            
+            # Access pagination object properties correctly
+            pagination = getattr(response, "pagination", None)
+            total_count = getattr(pagination, "total_count", 0) if pagination else 0
+            
+            # Check current page
+            for doc in docs:
+                doc_path = getattr(doc, "file_path", "") or ""
+                doc_name = Path(doc_path).name
+                
+                # Check for exact match on full path or filename
+                if file_name == doc_path or file_name == doc_name:
+                    return doc
+                
+                # Only log if check fails
+                # logger.debug(f"Checking doc: {doc_path} ({doc_name}) vs {file_name}")
+            
+            # Check if we need to fetch next page
+            if (page * page_size) >= total_count or not docs:
+                break
+                
+            page += 1
+            
+        return None
 
     async def get_pipeline_status(self) -> Any:
         """Check the status of the indexing pipeline."""
