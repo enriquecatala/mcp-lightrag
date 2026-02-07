@@ -45,27 +45,29 @@ uv sync
 ## Available Tools
 
 ### Search & Query
-- `query_knowledge_graph` — Semantic search across indexed documents
+- `query_knowledge_graph` — Execute specialized RAG queries (mix, semantic, keyword, etc.) to answer questions based on your data.
 
 ### Document Management
-- `ingest_text` — Add raw text to the knowledge base
-- `ingest_file` — Index a local file
-- `ingest_batch` — Bulk index files from a directory
-- `upload_and_index` — Upload and process a file
-- `list_all_docs` — List indexed documents
-- `check_indexing_status` — View pipeline processing status
+- `ingest_text` — Index raw text content directly into the graph.
+- `ingest_file` — Index a specific local file (absolute path required).
+- `upload_and_index` — Upload a file to the server for indexing (handles transfer).
+- `ingest_batch` — Recursively scan and index directories with pattern filtering.
+- `find_document` — Check if a document exists and retrieve detailed status (id, status, timestamps, error_msg).
+- `get_latest_documents` — Retrieve a paginated list of recently updated documents.
+- `list_all_docs` — List all documents in the system (warning: can be slow for large datasets).
+- `check_indexing_status` — Check if the background indexing pipeline is idle or busy.
 
 ### Graph Operations
-- `create_entities` — Add new entities
-- `modify_entities` — Update existing entities
-- `remove_entities` — Delete entities
-- `unify_entities` — Merge multiple entities into one
-- `connect_entities` — Create or update relationships
-- `purge_by_document` — Remove all data from specific documents
-- `get_graph_metadata` — Retrieve node and relationship types
+- `create_entities` — Manually insert new entities.
+- `modify_entities` — Update attributes of existing entities.
+- `remove_entities` — Delete specific entities.
+- `unify_entities` — Merge multiple entities into a single canonical entity.
+- `connect_entities` — Create or update relationships between entities.
+- `purge_by_document` — Remove all data associated with specific documents.
+- `get_graph_metadata` — Explore the graph schema (available node labels and relationship types).
 
 ### System
-- `verify_server_health` — Check LightRAG API availability
+- `verify_server_health` — Check if the LightRAG API is reachable and healthy.
 
 ## Development
 

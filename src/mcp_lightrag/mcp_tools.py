@@ -56,18 +56,18 @@ async def get_api(ctx: Context) -> LightRAGApiClient:
 
 # --- Search & Query Tools ---
 
-@mcp.tool(name="query_knowledge_graph", description="Knowledge-aware search across indexed documents")
+@mcp.tool(name="query_knowledge_graph", description="Search the knowledge graph for information using various strategies. Ideal for answering questions based on indexed data.")
 @format_output
 async def query_knowledge_graph(
     ctx: Context,
-    prompt: str = Field(description="The search question or query"),
+    prompt: str = Field(description="The question or search query to execute against the knowledge base"),
     search_mode: str = Field(
-        description="Search strategy: mix, semantic, keyword, global, hybrid, local, naive",
+        description="Search strategy to use: 'mix' (recommended for comprehensive results), 'semantic' (vector search), 'keyword' (exact match), 'global' (broad context), 'hybrid' (semantic + keyword), 'local' (specific context), 'naive' (simple)",
         default="mix"
     ),
-    limit: int = Field(description="Max items to retrieve", default=60),
-    context_only: bool = Field(description="Set true to get raw data only", default=False),
-    prompt_only: bool = Field(description="Set true to see the generated LLM prompt", default=False),
+    limit: int = Field(description="Maximum number of result items/paragraphs to retrieve", default=60),
+    context_only: bool = Field(description="If True, returns only the raw context data without LLM generation", default=False),
+    prompt_only: bool = Field(description="If True, returns only the constructed LLM prompt without executing it to the LLM", default=False),
 ) -> Any:
     """Execute a RAG query against the knowledge graph."""
     api = await get_api(ctx)
@@ -88,42 +88,42 @@ async def query_knowledge_graph(
 
 # --- Document Management Tools ---
 
-@mcp.tool(name="ingest_text", description="Add raw text directly to the knowledge graph")
+@mcp.tool(name="ingest_text", description="Index raw text content directly into the knowledge graph. Useful for small snippets or dynamic data.")
 @format_output
 async def ingest_text(
     ctx: Context,
-    content: Union[str, List[str]] = Field(description="Text strings to be indexed")
+    content: Union[str, List[str]] = Field(description="The text content (string or list of strings) to be indexed")
 ) -> Any:
     api = await get_api(ctx)
     return await api.add_text(content)
 
-@mcp.tool(name="ingest_file", description="Add a local file's content to the knowledge base")
+@mcp.tool(name="ingest_file", description="Index a specific local file from the file system. The file must be accessible by the running server.")
 @format_output
 async def ingest_file(
     ctx: Context,
-    file_path: str = Field(description="Absolute path to the file")
+    file_path: str = Field(description="Absolute path to the local file to be indexed")
 ) -> Any:
     api = await get_api(ctx)
     return await api.index_file(file_path)
 
-@mcp.tool(name="upload_and_index", description="Upload file to server storage and start indexing")
+@mcp.tool(name="upload_and_index", description="Upload a file to the LightRAG server's input directory and trigger indexing. Handles file transfer if the server is remote.")
 @format_output
 async def upload_and_index(
     ctx: Context,
-    file_path: str = Field(description="Local path to the file")
+    file_path: str = Field(description="Local path to the file to upload and index")
 ) -> Any:
     api = await get_api(ctx)
     return await api.upload_file(file_path)
 
-@mcp.tool(name="ingest_batch", description="Index all files in a directory matching specific criteria")
+@mcp.tool(name="ingest_batch", description="Recursively index all files in a directory that match specific patterns.")
 @format_output
 async def ingest_batch(
     ctx: Context,
-    directory_path: str = Field(description="Absolute path to the directory"),
-    recursive: bool = Field(description="Whether to scan subdirectories", default=False),
-    max_depth: int = Field(description="Maximum recursion depth", default=1),
-    include_patterns: List[str] = Field(description="Regex patterns for files to include", default_factory=list),
-    ignore_patterns: List[str] = Field(description="Regex patterns for files to exclude", default_factory=list)
+    directory_path: str = Field(description="Absolute path to the directory to scan"),
+    recursive: bool = Field(description="If True, scans subdirectories recursively", default=False),
+    max_depth: int = Field(description="Maximum depth for recursive scanning", default=1),
+    include_patterns: List[str] = Field(description="List of glob patterns for files to include (e.g. ['*.txt', '*.md'])", default_factory=list),
+    ignore_patterns: List[str] = Field(description="List of glob patterns for files to exclude", default_factory=list)
 ) -> Any:
     api = await get_api(ctx)
     return await api.ingest_batch(
@@ -134,13 +134,40 @@ async def ingest_batch(
         ignore_files=ignore_patterns
     )
 
-@mcp.tool(name="list_all_docs", description="Show all documents currently in the system")
+@mcp.tool(name="list_all_docs", description="List ALL documents currently in the system. WARNING: Can be slow if there are many documents. Use get_latest_documents for better performance.")
 @format_output
 async def list_all_docs(ctx: Context) -> Any:
     api = await get_api(ctx)
     return await api.get_all_documents()
 
-@mcp.tool(name="check_indexing_status", description="Get status of ongoing document processing")
+@mcp.tool(name="find_document", description="Check if a document exists by its filename or path. Returns a dictionary with detailed status: 'id', 'status' (processed/failed/pending), 'created_at', 'updated_at', 'content_length', 'chunks_count', and 'error_msg' if any.")
+@format_output
+async def find_document(
+    ctx: Context,
+    filename: str = Field(description="The name or path of the document file to find (e.g., 'report.pdf')")
+) -> Any:
+    api = await get_api(ctx)
+    doc = await api.find_document_by_file_name(filename)
+    if doc and hasattr(doc, "to_dict"):
+        return doc.to_dict()
+    return doc
+
+@mcp.tool(name="get_latest_documents", description="Get a paginated list of the most recently updated documents. Useful for monitoring ingestion progress.")
+@format_output
+async def get_latest_documents(
+    ctx: Context,
+    limit: int = Field(description="Number of documents to retrieve (10-100)", default=10),
+    status: str = Field(description="Optional filter by status (e.g. 'processed', 'failed', 'pending')", default=None)
+) -> Any:
+    api = await get_api(ctx)
+    # Ensure limit is within API bounds (10-200)
+    limit = max(10, min(limit, 100))
+    result = await api.get_documents_paginated(page=1, page_size=limit, sort_field="updated_at", sort_direction="desc", status_filter=status)
+    if result and hasattr(result, "to_dict"):
+        return result.to_dict()
+    return result
+
+@mcp.tool(name="check_indexing_status", description="Check the current status of the document processing pipeline (idle or busy).")
 @format_output
 async def check_indexing_status(ctx: Context) -> Any:
     api = await get_api(ctx)
@@ -148,13 +175,13 @@ async def check_indexing_status(ctx: Context) -> Any:
 
 # --- Graph Schema & Health ---
 
-@mcp.tool(name="get_graph_metadata", description="Get node and relationship types from the graph")
+@mcp.tool(name="get_graph_metadata", description="Retrieve schema information about the knowledge graph, including available node labels and relationship types.")
 @format_output
 async def get_graph_metadata(ctx: Context) -> Any:
     api = await get_api(ctx)
     return await api.get_labels()
 
-@mcp.tool(name="verify_server_health", description="Check if LightRAG server is reachable")
+@mcp.tool(name="verify_server_health", description="Check if the LightRAG server is reachable and healthy.")
 @format_output
 async def verify_server_health(ctx: Context) -> Any:
     api = await get_api(ctx)
@@ -162,11 +189,11 @@ async def verify_server_health(ctx: Context) -> Any:
 
 # --- Entity & Relationship Management ---
 
-@mcp.tool(name="create_entities", description="Manually insert entities into the graph")
+@mcp.tool(name="create_entities", description="Manually insert specific entities into the knowledge graph.")
 @format_output
 async def create_entities(
     ctx: Context,
-    entities: List[Dict[str, Any]] = Field(description="List of items: {name, type, description, source_id}")
+    entities: List[Dict[str, Any]] = Field(description="List of entity dictionaries. Each must contain: 'name', 'type', 'description', 'source_id'")
 ) -> Any:
     api = await get_api(ctx)
     results = []
@@ -189,11 +216,11 @@ async def create_entities(
         results=results
     )
 
-@mcp.tool(name="remove_entities", description="Delete specific entities from the graph")
+@mcp.tool(name="remove_entities", description="Delete one or more specific entities from the knowledge graph by name.")
 @format_output
 async def remove_entities(
     ctx: Context,
-    names: List[str] = Field(description="Names of entities to delete")
+    names: List[str] = Field(description="List of entity names to delete")
 ) -> Any:
     api = await get_api(ctx)
     results = []
@@ -205,11 +232,11 @@ async def remove_entities(
             results.append({"name": name, "status": "fail", "error": str(err)})
     return results
 
-@mcp.tool(name="purge_by_document", description="Delete everything associated with document IDs")
+@mcp.tool(name="purge_by_document", description="Remove all entities and relationships associated with specific document IDs from the graph.")
 @format_output
 async def purge_by_document(
     ctx: Context,
-    doc_ids: List[str] = Field(description="IDs of documents to prune from graph")
+    doc_ids: List[str] = Field(description="List of document IDs (e.g., from find_document) to prune from the graph")
 ) -> Any:
     api = await get_api(ctx)
     results = []
@@ -221,11 +248,11 @@ async def purge_by_document(
             results.append({"id": doc_id, "status": "fail", "error": str(err)})
     return results
 
-@mcp.tool(name="modify_entities", description="Update details for existing entities")
+@mcp.tool(name="modify_entities", description="Update the properties (type, description, source_id) of existing entities.")
 @format_output
 async def modify_entities(
     ctx: Context,
-    entities: List[Dict[str, Any]] = Field(description="Updated fields for entities")
+    entities: List[Dict[str, Any]] = Field(description="List of dictionaries with updated entity fields. Must include 'name'. Optional: 'type', 'description', 'source_id'")
 ) -> Any:
     api = await get_api(ctx)
     results = []
@@ -242,11 +269,11 @@ async def modify_entities(
             results.append({"name": e['name'], "status": "fail", "error": str(err)})
     return results
 
-@mcp.tool(name="connect_entities", description="Define or update relationships between entities")
+@mcp.tool(name="connect_entities", description="Define or update relationships between entities, including edge weights and descriptions.")
 @format_output
 async def connect_entities(
     ctx: Context,
-    relations: List[Dict[str, Any]] = Field(description="Relationship definitions: {source, target, description, keywords, type?, weight?, edit_mode?}")
+    relations: List[Dict[str, Any]] = Field(description="List of relationship definitions. Required: 'source', 'target'. Optional: 'description', 'keywords', 'weight', 'type', 'edit_mode'")
 ) -> Any:
     api = await get_api(ctx)
     results = []
@@ -267,13 +294,13 @@ async def connect_entities(
             results.append({"rel": f"{r.get('source')}->{r.get('target')}", "status": "fail", "error": str(err)})
     return results
 
-@mcp.tool(name="unify_entities", description="Merge multiple entities into one")
+@mcp.tool(name="unify_entities", description="Merge multiple source entities into a single target entity to resolve duplicates or synonyms.")
 @format_output
 async def unify_entities(
     ctx: Context,
-    sources: List[str] = Field(description="Entities to be merged"),
-    target: str = Field(description="Name of the resolving entity"),
-    strategies: Dict[str, str] = Field(description="Merge strategy per field: keep_first, keep_last, concatenate", default_factory=dict)
+    sources: List[str] = Field(description="List of entity names to be merged (will be removed)"),
+    target: str = Field(description="Name of the resolving entity (will function as the canonical entity)"),
+    strategies: Dict[str, str] = Field(description="Strategy per field (e.g. {'description': 'concatenate'}). Options: keep_first, keep_last, concatenate", default_factory=dict)
 ) -> Any:
     api = await get_api(ctx)
     return await api.merge_entities(sources, target, strategies)
