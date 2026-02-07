@@ -12,7 +12,7 @@ from mcp.server.fastmcp import Context, FastMCP
 from pydantic import Field
 
 from .api_client import LightRAGApiClient
-from .settings import DEFAULT_SETTINGS
+from .settings import get_settings
 from .models import OperationResult, BatchResult
 from .client.light_rag_server_api_client.models import QueryRequest, QueryRequestMode
 
@@ -26,7 +26,8 @@ class AppContext:
 @asynccontextmanager
 async def lifespan(server: FastMCP) -> AsyncIterator[AppContext]:
     """Manages the lifecycle of the API client."""
-    client = LightRAGApiClient(DEFAULT_SETTINGS)
+    # Re-fetch settings here to capture any environment variable overrides from CLI
+    client = LightRAGApiClient(get_settings())
     try:
         yield AppContext(client)
     finally:
