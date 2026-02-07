@@ -42,6 +42,35 @@ uv sync
 | `--api-key`   | `LIGHTRAG_API_KEY`   | *(none)*    | Optional API key  |
 | `--log-level` | —                    | `INFO`      | Logging verbosity |
 
+## Setting up as MCP Server
+
+To integrate this server with an MCP client (such as Claude Desktop), add the following configuration to your `mcp-server-config.json` key in your settings file. This configuration uses `uv` to run the server from the source directory.
+
+```json
+{
+  "mcpServers": {
+    "mcp-lightrag": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/absolute/path/to/mcp-lightrag",
+        "run",
+        "mcp-lightrag",
+        "--host",
+        "localhost",
+        "--port",
+        "9621"
+      ],
+      "env": {
+        "LIGHTRAG_API_KEY": "optional_api_key"
+      }
+    }
+  }
+}
+```
+
+> **Note**: Replace `/absolute/path/to/mcp-lightrag` with the actual full path to where you cloned this repository.
+
 ## Available Tools
 
 ### Search & Query
