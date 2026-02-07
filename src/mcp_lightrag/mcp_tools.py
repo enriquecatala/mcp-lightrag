@@ -115,6 +115,22 @@ async def upload_and_index(
     api = await get_api(ctx)
     return await api.upload_file(file_path)
 
+@mcp.tool(name="upsert_document", description="Intelligently upload a document: if it doesn't exist, creates it; if it exists and is identical (same content length), skips upload; if it exists but was modified, deletes the old version and re-uploads.")
+@format_output
+async def upsert_document(
+    ctx: Context,
+    file_path: str = Field(description="Local path to the document file to upsert")
+) -> Any:
+    """
+    Smart document upload that handles three scenarios:
+    - NEW: Document doesn't exist → uploads it
+    - IDENTICAL: Document exists with same content → skips (returns success)
+    - MODIFIED: Document exists but content changed → deletes old, uploads new
+    """
+    api = await get_api(ctx)
+    return await api.upsert_document(file_path)
+
+
 @mcp.tool(name="ingest_batch", description="Recursively index all files in a directory that match specific patterns.")
 @format_output
 async def ingest_batch(

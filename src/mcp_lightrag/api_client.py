@@ -401,3 +401,72 @@ class LightRAGApiClient:
     async def check_health(self) -> Any:
         """Check if the LightRAG service is healthy."""
         return await self._execute_op(async_get_health, "health_check")
+
+    async def upsert_document(self, file_path: Union[str, Path]) -> Dict[str, Any]:
+        """
+        Intelligently upload a document:
+        - If document doesn't exist: upload it
+        - If document exists and is identical: skip upload
+        - If document exists but was modified: delete and re-upload
+        
+        Returns a dict with 'action' (created/skipped/updated), 'doc_id', and optional 'reason'.
+        """
+        path = Path(file_path)
+        if not path.exists():
+            raise ResourceNotFoundError(f"File not found: {file_path}")
+        
+        # Get local file info
+        local_content = path.read_bytes()
+        local_size = len(local_content)
+        # Also compute stripped size to handle trailing whitespace differences
+        local_size_stripped = len(local_content.rstrip())
+        file_name = path.name
+        
+        # Check if document already exists
+        existing_doc = await self.find_document_by_file_name(file_name)
+        
+        if existing_doc is None:
+            # Document doesn't exist, upload it
+            result = await self.upload_file(file_path)
+            logger.info(f"Created new document: {file_name}")
+            return {
+                "action": "created",
+                "file_name": file_name,
+                "result": result
+            }
+        
+        # Document exists, check if it's identical
+        existing_size = getattr(existing_doc, "content_length", None)
+        doc_id = getattr(existing_doc, "id", None)
+        
+        # Compare by content length - handle trailing whitespace differences
+        # Server may store content with/without trailing newline
+        if existing_size is not None:
+            # Check exact match OR match after stripping trailing whitespace
+            sizes_match = (
+                existing_size == local_size or 
+                existing_size == local_size_stripped or
+                abs(existing_size - local_size) <= 2  # Allow 2-byte tolerance for newline variations (\n vs \r\n)
+            )
+            if sizes_match:
+                logger.info(f"Document {file_name} already exists with same content (skipped)")
+                return {
+                    "action": "skipped",
+                    "reason": "document already exists with identical content",
+                    "doc_id": doc_id,
+                    "file_name": file_name
+                }
+        
+        # Document exists but was modified, delete and re-upload
+        if doc_id:
+            logger.info(f"Document {file_name} was modified, deleting old version...")
+            await self.delete_by_doc(doc_id)
+        
+        result = await self.upload_file(file_path)
+        logger.info(f"Updated document: {file_name}")
+        return {
+            "action": "updated",
+            "old_doc_id": doc_id,
+            "file_name": file_name,
+            "result": result
+        }

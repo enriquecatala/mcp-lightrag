@@ -281,6 +281,189 @@ async def test_upload_wait_and_delete(client):
     print("Lifecycle test completed successfully!")
 
 
+@pytest.mark.integration
+async def test_upsert_document_new(client):
+    """Test upsert when document doesn't exist - should create it."""
+    import asyncio
+    import tempfile
+    import os
+    
+    # Create a unique test file
+    test_content = "Upsert integration test - new document.\n"
+    
+    temp_path = None
+    doc_id = None
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_upsert_new.txt', delete=False) as f:
+        f.write(test_content)
+        temp_path = Path(f.name)
+    
+    try:
+        print(f"Step 1: Upserting new document {temp_path.name}...")
+        result = await client.upsert_document(temp_path)
+        
+        print(f"Result: {result}")
+        assert result["action"] == "created", f"Expected 'created' but got '{result['action']}'"
+        assert result["file_name"] == temp_path.name
+        
+        # Wait for processing
+        print("Step 2: Waiting for document to be indexed...")
+        await asyncio.sleep(3)
+        
+        # Find and cleanup
+        doc = await client.find_document_by_file_name(temp_path.name)
+        if doc:
+            doc_id = getattr(doc, "id", None)
+            print(f"Document found with ID: {doc_id}")
+        
+        print("New document upsert test passed!")
+        
+    finally:
+        # Cleanup local file
+        if temp_path and temp_path.exists():
+            os.remove(temp_path)
+        
+        # Cleanup remote document
+        if doc_id:
+            try:
+                await asyncio.sleep(2)
+                await client.delete_by_doc(doc_id)
+                print(f"Cleaned up document {doc_id}")
+            except Exception as e:
+                print(f"Warning: Failed to cleanup: {e}")
+
+
+@pytest.mark.integration
+async def test_upsert_document_identical(client):
+    """Test upsert when document exists and is identical - should skip."""
+    import asyncio
+    import tempfile
+    import os
+    
+    test_content = "Upsert integration test - identical document.\n"
+    
+    temp_path = None
+    doc_id = None
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_upsert_identical.txt', delete=False) as f:
+        f.write(test_content)
+        temp_path = Path(f.name)
+    
+    try:
+        # Step 1: First upsert (should create)
+        print(f"Step 1: First upsert of {temp_path.name}...")
+        result1 = await client.upsert_document(temp_path)
+        print(f"First upsert result: {result1}")
+        assert result1["action"] == "created"
+        
+        # Wait for processing
+        print("Step 2: Waiting for document to be indexed...")
+        for i in range(15):
+            await asyncio.sleep(2)
+            doc = await client.find_document_by_file_name(temp_path.name)
+            if doc:
+                doc_id = getattr(doc, "id", None)
+                content_length = getattr(doc, "content_length", None)
+                print(f"  Attempt {i+1}: Found doc {doc_id}, content_length={content_length}")
+                if content_length is not None:
+                    break
+            else:
+                print(f"  Attempt {i+1}: Document not found yet...")
+        
+        # Step 3: Second upsert with same content (should skip)
+        print("Step 3: Second upsert with identical content...")
+        result2 = await client.upsert_document(temp_path)
+        print(f"Second upsert result: {result2}")
+        assert result2["action"] == "skipped", f"Expected 'skipped' but got '{result2['action']}'"
+        assert "identical" in result2.get("reason", "").lower()
+        
+        print("Identical document upsert test passed!")
+        
+    finally:
+        if temp_path and temp_path.exists():
+            os.remove(temp_path)
+        
+        if doc_id:
+            try:
+                await asyncio.sleep(2)
+                await client.delete_by_doc(doc_id)
+                print(f"Cleaned up document {doc_id}")
+            except Exception as e:
+                print(f"Warning: Failed to cleanup: {e}")
+
+
+@pytest.mark.integration
+async def test_upsert_document_modified(client):
+    """Test upsert when document was modified - should update."""
+    import asyncio
+    import tempfile
+    import os
+    
+    original_content = "Upsert integration test - original content.\n"
+    modified_content = "Upsert integration test - modified content with extra words added here.\n"
+    
+    temp_path = None
+    doc_id = None
+    
+    with tempfile.NamedTemporaryFile(mode='w', suffix='_upsert_modified.txt', delete=False) as f:
+        f.write(original_content)
+        temp_path = Path(f.name)
+    
+    try:
+        # Step 1: First upsert (should create)
+        print(f"Step 1: First upsert of {temp_path.name}...")
+        result1 = await client.upsert_document(temp_path)
+        print(f"First upsert result: {result1}")
+        assert result1["action"] == "created"
+        
+        # Wait for processing
+        print("Step 2: Waiting for document to be indexed...")
+        for i in range(15):
+            await asyncio.sleep(2)
+            doc = await client.find_document_by_file_name(temp_path.name)
+            if doc:
+                doc_id = getattr(doc, "id", None)
+                content_length = getattr(doc, "content_length", None)
+                print(f"  Attempt {i+1}: Found doc {doc_id}, content_length={content_length}")
+                if content_length is not None:
+                    break
+            else:
+                print(f"  Attempt {i+1}: Document not found yet...")
+        
+        # Step 3: Modify the file
+        print("Step 3: Modifying local file...")
+        with open(temp_path, 'w') as f:
+            f.write(modified_content)
+        print(f"  New content length: {len(modified_content)}")
+        
+        # Step 4: Upsert modified file (should update)
+        print("Step 4: Upserting modified file...")
+        result2 = await client.upsert_document(temp_path)
+        print(f"Second upsert result: {result2}")
+        assert result2["action"] == "updated", f"Expected 'updated' but got '{result2['action']}'"
+        assert result2.get("old_doc_id") == doc_id
+        
+        # Get new doc ID for cleanup
+        await asyncio.sleep(3)
+        doc = await client.find_document_by_file_name(temp_path.name)
+        if doc:
+            doc_id = getattr(doc, "id", None)
+        
+        print("Modified document upsert test passed!")
+        
+    finally:
+        if temp_path and temp_path.exists():
+            os.remove(temp_path)
+        
+        if doc_id:
+            try:
+                await asyncio.sleep(2)
+                await client.delete_by_doc(doc_id)
+                print(f"Cleaned up document {doc_id}")
+            except Exception as e:
+                print(f"Warning: Failed to cleanup: {e}")
+
+
 # --- Skip integration tests if server is not available ---
 
 @pytest.fixture(scope="module", autouse=True)
