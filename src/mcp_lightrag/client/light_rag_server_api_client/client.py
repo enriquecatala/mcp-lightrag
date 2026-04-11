@@ -184,8 +184,8 @@ class AuthenticatedClient:
     _async_client: httpx.AsyncClient | None = field(default=None, init=False)
 
     token: str
-    prefix: str = "Bearer"
-    auth_header_name: str = "Authorization"
+    prefix: str = ""
+    auth_header_name: str = "X-API-Key"
 
     def with_headers(self, headers: dict[str, str]) -> "AuthenticatedClient":
         """Get a new client matching this one with additional headers"""
