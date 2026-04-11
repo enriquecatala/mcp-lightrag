@@ -63,7 +63,7 @@ async def query_knowledge_graph(
     ctx: Context,
     prompt: str = Field(description="The question or search query to execute against the knowledge base"),
     search_mode: str = Field(
-        description="Search strategy to use: 'mix' (recommended for comprehensive results), 'semantic' (vector search), 'keyword' (exact match), 'global' (broad context), 'hybrid' (semantic + keyword), 'local' (specific context), 'naive' (simple)",
+        description="Search strategy to use: 'mix' (recommended, integrates graph + vector), 'local' (entity-focused), 'global' (broad patterns), 'hybrid' (local + global), 'naive' (vector only), 'bypass' (direct LLM, no retrieval)",
         default="mix"
     ),
     limit: int = Field(description="Maximum number of result items/paragraphs to retrieve", default=60),
@@ -78,11 +78,10 @@ async def query_knowledge_graph(
         top_k=limit,
         only_need_context=context_only,
         only_need_prompt=prompt_only,
-        # Sensible defaults for other params
         response_type="Multiple Paragraphs",
-        max_token_for_global_context=4096,
-        max_token_for_local_context=4096,
-        history_turns=10
+        max_entity_tokens=4096,
+        max_relation_tokens=4096,
+        stream=False,
     )
     return await api.query(params)
 
@@ -123,9 +122,9 @@ async def upsert_document(
 ) -> Any:
     """
     Smart document upload that handles three scenarios:
-    - NEW: Document doesn't exist → uploads it
-    - IDENTICAL: Document exists with same content → skips (returns success)
-    - MODIFIED: Document exists but content changed → deletes old, uploads new
+    - NEW: Document doesn't exist -> uploads it
+    - IDENTICAL: Document exists with same content -> skips (returns success)
+    - MODIFIED: Document exists but content changed -> deletes old, uploads new
     """
     api = await get_api(ctx)
     return await api.upsert_document(file_path)
@@ -216,15 +215,15 @@ async def create_entities(
     for e in entities:
         try:
             res = await api.create_entity(
-                name=str(e['name']), 
-                type=str(e['type']), 
-                description=str(e['description']), 
+                name=str(e['name']),
+                type=str(e['type']),
+                description=str(e['description']),
                 source_id=str(e['source_id'])
             )
             results.append({"name": e['name'], "status": "ok", "data": res})
         except Exception as err:
             results.append({"name": e.get('name', 'unknown'), "status": "fail", "error": str(err)})
-    
+
     return BatchResult(
         total=len(entities),
         successful=sum(1 for r in results if r['status'] == 'ok'),
