@@ -14,6 +14,10 @@ class ServerSettings:
     
     @property
     def base_url(self) -> str:
+        if self.host.startswith(("http://", "https://")):
+            return self.host
+        if self.port == 443:
+            return f"https://{self.host}"
         return f"http://{self.host}:{self.port}"
 
 @dataclass
