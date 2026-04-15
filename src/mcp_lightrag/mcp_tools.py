@@ -78,12 +78,7 @@ async def query_knowledge_graph(
         top_k=limit,
         only_need_context=context_only,
         only_need_prompt=prompt_only,
-        # Sensible defaults for other params
         response_type="Multiple Paragraphs",
-        max_token_for_text_unit=4096,
-        max_token_for_global_context=4096,
-        max_token_for_local_context=4096,
-        history_turns=10
     )
     return await api.query(params)
 
