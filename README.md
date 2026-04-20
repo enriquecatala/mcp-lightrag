@@ -49,6 +49,21 @@ Valid query modes: `mix`, `local`, `global`, `hybrid`, `naive`, `bypass`.
 
 The original code sent the API key as a `Bearer` token. LightRAG server expects it in the `X-API-Key` header. The `AuthenticatedClient` is now configured with `auth_header_name="X-API-Key"` and `prefix=""`.
 
+### Fix: HTTPS auto-detection for port 443
+
+The original code always built `base_url` as `http://host:port`, causing
+HTTP 400 errors when connecting to HTTPS servers (e.g. via nginx on port 443).
+
+**Fixed behavior:**
+- Port 443 automatically uses `https://`
+- Explicit scheme in `--host` is respected (e.g. `--host https://example.com`)
+
+| Configuration | Result |
+|---|---|
+| `--host localhost --port 9621` | `http://localhost:9621` |
+| `--host example.com --port 443` | `https://example.com:443` |
+| `--host https://example.com --port 443` | `https://example.com` |
+
 ---
 
 ## Installation
@@ -71,7 +86,7 @@ uv sync
 
 ## Configuration
 
-### Claude Desktop (`claude_desktop_config.json`)
+### Claude Desktop (`claude_desktop_config.json`) (for Windows)
 
 ```json
 {
@@ -82,7 +97,7 @@ uv sync
         "--directory", "C:\\path\\to\\mcp-lightrag",
         "run", "mcp-lightrag",
         "--host", "YOUR_LIGHTRAG_HOST",
-        "--port", "80"
+        "--port", "9621" 
       ],
       "env": {
         "LIGHTRAG_API_KEY": "your-api-key-here"
