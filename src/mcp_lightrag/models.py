@@ -14,7 +14,13 @@ class ServerSettings:
 
     @property
     def base_url(self) -> str:
-        return f"http://{self.host}:{self.port}"
+        # ≈сли схема уже указана в host Ч используем как есть
+        if self.host.startswith("http://") or self.host.startswith("https://"):
+            host = self.host.rstrip("/")
+            return f"{host}:{self.port}" if self.port not in (80, 443) else host
+        # »наче Ч автоопределение по порту
+        scheme = "https" if self.port == 443 else "http"
+        return f"{scheme}://{self.host}:{self.port}"
 
 @dataclass
 class QueryParams:
