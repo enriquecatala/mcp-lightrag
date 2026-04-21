@@ -1,52 +1,92 @@
-# LightRAG MCP Server
+# mcp-lightrag
 
-A Model Context Protocol (MCP) server that enables AI assistants to interact with [LightRAG](https://github.com/HKUDS/LightRAG) knowledge graphs. Query documents, manage entities, and build semantic relationships through a standardized tool interface.
-**Optimized for Obsidian Vaults**: The built-in smart upsert and document tracking capabilities make it perfect for agents that need to sync and reason over evolving Obsidian knowledge bases.
+MCP (Model Context Protocol) server for [LightRAG](https://github.com/HKUDS/LightRAG) — a graph-based Retrieval-Augmented Generation framework.
 
-## Features
+This fork adds API key header authentication support and fixes compatibility with **LightRAG >= 1.4.13**.
 
-- **Smart Updates**: Intelligent `upsert` logic that detects changes in documents, skipping redundant uploads and re-indexing only when necessary
-- **Knowledge Graph Queries**: Perform semantic, keyword, or hybrid searches across your indexed documents
-- **Document Ingestion**: Add text, files, or entire directories to your knowledge base
-- **Entity Management**: Create, update, merge, and delete entities in the graph
-- **Relationship Handling**: Define and modify connections between entities
-- **Robust Connectivity**: Automatic retry with exponential backoff for reliable API communication
-- **Flexible Configuration**: Set options via environment variables or command-line arguments
+> Original project: [enriquecatala/mcp-lightrag](https://github.com/enriquecatala/mcp-lightrag)
+
+---
+
+## Compatibility
+
+| mcp-lightrag | LightRAG server |
+|---|---|
+| this fork (`main`) | >= 1.4.13 |
+| upstream 0.2.2 | <= 1.4.12 |
+
+---
+
+## What was changed in this fork
+
+### Fix: compatibility with LightRAG >= 1.4.13
+
+LightRAG 1.4.13 removed and renamed several `QueryRequest` parameters.
+
+**Removed parameters (cause `TypeError` on upstream 0.2.2):**
+
+| Old parameter | Status |
+|---|---|
+| `max_token_for_text_unit` | removed |
+| `history_turns` | removed |
+
+**Renamed parameters:**
+
+| Old name | New name |
+|---|---|
+| `max_token_for_global_context` | `max_relation_tokens` |
+| `max_token_for_local_context` | `max_entity_tokens` |
+
+**Removed query mode:**
+
+| Old mode | Status |
+|---|---|
+| `semantic` | does not exist in `QueryRequestMode` |
+
+Valid query modes: `mix`, `local`, `global`, `hybrid`, `naive`, `bypass`.
+
+### Fix: API key sent as `X-API-Key` header
+
+The original code sent the API key as a `Bearer` token. LightRAG server expects it in the `X-API-Key` header. The `AuthenticatedClient` is now configured with `auth_header_name="X-API-Key"` and `prefix=""`.
+
+### Fix: HTTPS auto-detection for port 443
+
+The original code always built `base_url` as `http://host:port`, causing
+HTTP 400 errors when connecting to HTTPS servers (e.g. via nginx on port 443).
+
+**Fixed behavior:**
+- Port 443 automatically uses `https://`
+- Explicit scheme in `--host` is respected (e.g. `--host https://example.com`)
+
+| Configuration | Result |
+|---|---|
+| `--host localhost --port 9621` | `http://localhost:9621` |
+| `--host example.com --port 443` | `https://example.com:443` |
+| `--host https://example.com --port 443` | `https://example.com` |
+
+---
 
 ## Installation
 
-```bash
-# Clone the repository
-git clone https://github.com/enriquecatala/mcp-lightrag.git
-cd mcp-lightrag
+### Prerequisites
 
-# Install dependencies
+- Python >= 3.10
+- [uv](https://github.com/astral-sh/uv)
+- A running LightRAG server >= 1.4.13
+
+### Clone and install
+
+```bash
+git clone https://github.com/leskei217/mcp-lightrag.git
+cd mcp-lightrag
 uv sync
 ```
 
-## Quick Start
-
-1. **Start your LightRAG server** (must be running before the MCP server)
-
-2. **Launch the MCP server**:
-   ```bash
-   uv run mcp-lightrag --host localhost --port 9621
-   ```
-
-3. **Connect your AI assistant** via the MCP protocol (stdio transport)
+---
 
 ## Configuration
 
-| Option        | Environment Variable | Default     | Description       |
-| ------------- | -------------------- | ----------- | ----------------- |
-| `--host`      | `LIGHTRAG_HOST`      | `localhost` | LightRAG API host |
-| `--port`      | `LIGHTRAG_PORT`      | `9621`      | LightRAG API port |
-| `--api-key`   | `LIGHTRAG_API_KEY`   | *(none)*    | Optional API key  |
-| `--log-level` | —                    | `INFO`      | Logging verbosity |
-
-## Setting up as MCP Server
-
-To integrate this server with an MCP client (such as Claude Desktop), add the following configuration to your `mcp-server-config.json` key in your settings file. This configuration uses `uv` to run the server from the source directory.
+### Claude Desktop (`claude_desktop_config.json`) (for Windows)
 
 ```json
 {
@@ -54,100 +94,80 @@ To integrate this server with an MCP client (such as Claude Desktop), add the fo
     "mcp-lightrag": {
       "command": "uv",
       "args": [
-        "--directory",
-        "/absolute/path/to/mcp-lightrag",
-        "run",
-        "mcp-lightrag",
-        "--host",
-        "localhost",
-        "--port",
-        "9621"
+        "--directory", "C:\\path\\to\\mcp-lightrag",
+        "run", "mcp-lightrag",
+        "--host", "YOUR_LIGHTRAG_HOST",
+        "--port", "9621" 
       ],
       "env": {
-        "LIGHTRAG_API_KEY": "optional_api_key"
+        "LIGHTRAG_API_KEY": "your-api-key-here"
       }
     }
   }
 }
 ```
 
-> **Note**: Replace `/absolute/path/to/mcp-lightrag` with the actual full path to where you cloned this repository.
+If your LightRAG server has no authentication, omit `LIGHTRAG_API_KEY` entirely.
 
-### Smart Document Handling
-This server distinguishes itself with an intelligent **Upsert Mechanism** ideal for keeping in sync with **Obsidian Vaults** or other local knowledge bases:
-- **New File** → Uploads and indexes immediately.
-- **Unchanged File** → Detects identical content and skips (saving time and resources).
-- **Modified File** → Automatically removes the old version and indexes the new one.
-This allows agents to efficiently "watch" a folder and keep the RAG knowledge graph up-to-date without redundant processing.
+### Environment variables
 
-## Available Tools
+| Variable | Default | Description |
+|---|---|---|
+| `LIGHTRAG_HOST` | `localhost` | LightRAG server host |
+| `LIGHTRAG_PORT` | `9621` | LightRAG server port |
+| `LIGHTRAG_API_KEY` | *(empty)* | API key (omit if auth disabled) |
 
-### Search & Query
-- `query_knowledge_graph` — Execute specialized RAG queries (mix, semantic, keyword, etc.) to answer questions based on your data.
+---
 
-### Document Management
-- `ingest_text` — Index raw text content directly into the graph.
-- `ingest_file` — Index a specific local file (absolute path required).
-- `upload_and_index` — Upload a file to the server for indexing (handles transfer).
-- `ingest_batch` — Recursively scan and index directories with pattern filtering.
-- `upsert_document` — Smart document upload: creates new, skips identical, or updates modified documents.
-- `find_document` — Search for a document by filename to check status and details.
-- `get_latest_documents` — Retrieve a paginated list of recently updated documents.
-- `list_all_docs` — List all documents in the system (warning: can be slow for large datasets).
-- `check_indexing_status` — Check if the background indexing pipeline is idle or busy.
+## Available MCP tools
 
-### Graph Operations
-- `create_entities` — Manually insert new entities.
-- `modify_entities` — Update attributes of existing entities.
-- `remove_entities` — Delete specific entities.
-- `unify_entities` — Merge multiple entities into a single canonical entity.
-- `connect_entities` — Create or update relationships between entities.
-- `purge_by_document` — Delete a document and remove all its associated data from the graph.
-- `get_graph_metadata` — Explore the graph schema (available node labels and relationship types).
+### Query
 
-### System
-- `verify_server_health` — Check if the LightRAG API is reachable and healthy.
+| Tool | Description |
+|---|---|
+| `query_knowledge_graph` | Search the knowledge graph. Modes: `mix`, `local`, `global`, `hybrid`, `naive`, `bypass` |
 
-## Development
+### Documents
 
-```bash
-# Install dev dependencies
-uv sync --all-extras
+| Tool | Description |
+|---|---|
+| `ingest_text` | Index raw text directly |
+| `ingest_file` | Index a local file |
+| `upload_and_index` | Upload a file to server and index it |
+| `upsert_document` | Smart upload: create / skip if identical / update if changed |
+| `ingest_batch` | Index all files in a directory |
+| `list_all_docs` | List all documents (slow on large collections) |
+| `find_document` | Find a document by filename |
+| `get_latest_documents` | Paginated list of recently updated documents |
+| `check_indexing_status` | Check pipeline status (idle/busy) |
 
-# Run tests
-uv run python -m pytest
+### Graph
 
-# Lint code
-uv run ruff check src/
-```
+| Tool | Description |
+|---|---|
+| `get_graph_metadata` | List node labels and relation types |
+| `verify_server_health` | Health check |
+| `create_entities` | Add entities manually |
+| `remove_entities` | Delete entities by name |
+| `modify_entities` | Update entity properties |
+| `connect_entities` | Create or update relationships |
+| `unify_entities` | Merge duplicate entities |
+| `purge_by_document` | Remove all graph data for given document IDs |
 
-### Publishing
+---
 
-To publish a new version to PyPI:
+## Query modes reference
 
-1. Update the version in `pyproject.toml`.
-2. Build the package:
-   ```bash
-   uv run python -m build
-   ```
-3. Upload to PyPI (requires PyPI API token):
-   ```bash
-   uv run twine upload dist/*
-   ```
+| Mode | Description |
+|---|---|
+| `mix` | **Recommended.** Combines knowledge graph retrieval with vector search |
+| `local` | Entity-focused: returns entities and their direct relationships |
+| `global` | Pattern analysis across the full knowledge graph |
+| `hybrid` | Combines local and global strategies |
+| `naive` | Vector similarity search only, no knowledge graph |
+| `bypass` | Direct LLM call, no retrieval |
 
-### Updating the Client
-
-If the LightRAG API evolves, you can regenerate the client using `openapi-python-client`. Ensure your LightRAG server is running (e.g., at `http://localhost:9621`), then run:
-
-```bash
-uv tool run openapi-python-client generate \
-  --url http://localhost:9621/openapi.json \
-  --output-path src/mcp_lightrag/client/light_rag_server_api_client \
-  --meta none \
-  --overwrite
-```
-
-This will update the client code in `src/mcp_lightrag/client/light_rag_server_api_client` based on the latest OpenAPI specification.
+---
 
 ## License
 
