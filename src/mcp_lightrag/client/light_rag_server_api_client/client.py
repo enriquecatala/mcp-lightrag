@@ -184,8 +184,14 @@ class AuthenticatedClient:
     _async_client: httpx.AsyncClient | None = field(default=None, init=False)
 
     token: str
-    prefix: str = "Bearer"
-    auth_header_name: str = "Authorization"
+    # LightRAG accepts the API key on `X-API-Key` directly, not on
+    # `Authorization: Bearer <key>` (the openapi-python-client generator
+    # default). Sending the key under the wrong header returns
+    # `{"detail":"Invalid token"}` for every authenticated request while
+    # the unauthenticated health check still appears to succeed. If this
+    # client is regenerated, re-apply this override.
+    prefix: str = ""
+    auth_header_name: str = "X-API-Key"
 
     def with_headers(self, headers: dict[str, str]) -> "AuthenticatedClient":
         """Get a new client matching this one with additional headers"""
